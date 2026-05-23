@@ -1,18 +1,6 @@
-const brevo = require('@getbrevo/brevo');
+const axios = require('axios');
 const cron = require('node-cron');
 const Booking = require('../models/Booking');
-
-let apiInstance = null;
-
-const getBrevoInstance = () => {
-  if (apiInstance) return apiInstance;
-  // Use the correct constructor based on the SDK version
-  const TransactionalEmailsApi = brevo.TransactionalEmailsApi || brevo.TransactionalEmailsApiApi;
-  const apiKeyType = brevo.TransactionalEmailsApiApiKeys?.apiKey || brevo.TransactionalEmailsApiApiKeys?.API_KEY || 'apiKey';
-  apiInstance = new TransactionalEmailsApi();
-  apiInstance.setApiKey(apiKeyType, process.env.BREVO_API_KEY);
-  return apiInstance;
-};
 
 const getAdminEmail = async () => {
   try {
@@ -25,16 +13,26 @@ const getAdminEmail = async () => {
   }
 };
 
-// Generic send function
+// Generic send function using Brevo HTTP API directly (no SDK)
 const sendEmail = async (to, subject, html) => {
-  const api = getBrevoInstance();
-  const SendSmtpEmail = brevo.SendSmtpEmail;
-  const email = new SendSmtpEmail();
-  email.subject = subject;
-  email.to = [{ email: to }];
-  email.htmlContent = html;
-  email.sender = { name: 'DGW Autospa', email: process.env.EMAIL_FROM };
-  await api.sendTransacEmail(email);
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error('Missing BREVO_API_KEY environment variable');
+  if (!process.env.EMAIL_FROM) throw new Error('Missing EMAIL_FROM environment variable');
+
+  const data = {
+    sender: { name: 'DGW Autospa', email: process.env.EMAIL_FROM },
+    to: [{ email: to }],
+    subject: subject,
+    htmlContent: html,
+  };
+
+  const response = await axios.post('https://api.brevo.com/v3/smtp/email', data, {
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+  });
+  return response.data;
 };
 
 // ---------- Password Reset Email ----------
@@ -97,6 +95,7 @@ const sendBookingStatusEmail = async (toEmail, customerName, bookingDetails, sta
         </div>
         <hr style="margin: 20px 0; border-color: #e5e7eb;">
         <p style="color: #9ca3af; font-size: 12px;">Need help? Call us at <strong>+234 702 588 7213</strong></p>
+        <p style="color: #9ca3af; font-size: 12px; margin: 5px 0 0;">© 2024 DGW Autospa - All rights reserved</p>
       </div>
     </div>
   `;
@@ -118,7 +117,8 @@ const sendReviewStatusEmail = async (customerEmail, customerName, status, review
         <p>Dear <strong>${customerName}</strong>,</p>
         <p>${isApproved ? 'Thank you for your feedback! Your review has been approved and published on our website.' : 'Thank you for your feedback. Unfortunately, your review was not published at this time.'}</p>
         ${replyMessage ? `<div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 20px 0;"><p><strong>📝 Our response:</strong></p><p>${replyMessage}</p></div>` : ''}
-        <hr><p style="color: #9ca3af; font-size: 12px;">We value your feedback and look forward to serving you again!</p>
+        <hr style="margin: 20px 0; border-color: #e5e7eb;">
+        <p style="color: #9ca3af; font-size: 12px; margin: 0;">We value your feedback and look forward to serving you again!</p>
       </div>
     </div>
   `;
@@ -139,7 +139,8 @@ const sendContactAutoReply = async (toEmail, customerName) => {
           <p><strong>📞 Need immediate assistance?</strong></p>
           <p>Call us at: <strong>+234 702 588 7213</strong><br>Visit us at: <strong>4, Ibrahim Odofin Street, Idado Estate, Lekki, Lagos</strong></p>
         </div>
-        <hr><p style="color: #9ca3af; font-size: 12px;">We look forward to serving you!</p>
+        <hr style="margin: 20px 0; border-color: #e5e7eb;">
+        <p style="color: #9ca3af; font-size: 12px; margin: 0;">We look forward to serving you!</p>
       </div>
     </div>
   `;
@@ -175,7 +176,8 @@ const sendPromotionBookingEmail = async (customerEmail, customerName, bookingDet
             <tr><td style="padding: 8px 0;"><strong>Promo Code:</strong></td><td style="padding: 8px 0;"><strong style="color: #2563eb;">MYFREEWHEEL</strong></td></tr>
           </table>
         </div>
-        <hr><p style="color: #9ca3af; font-size: 12px;">Questions? Call us at <strong>+234 702 588 7213</strong></p>
+        <hr style="margin: 20px 0; border-color: #e5e7eb;">
+        <p style="color: #9ca3af; font-size: 12px; margin: 0;">Questions? Call us at <strong>+234 702 588 7213</strong></p>
       </div>
     </div>
   `;
@@ -269,7 +271,8 @@ const sendWelcomeEmail = async (toEmail, customerName) => {
         <div style="text-align: center; margin: 30px 0;">
           <a href="${process.env.FRONTEND_URL}/services" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: white; padding: 12px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">Explore Our Services</a>
         </div>
-        <hr><p style="color: #9ca3af; font-size: 12px;">Need help? Call us at <strong>+234 702 588 7213</strong></p>
+        <hr style="margin: 20px 0; border-color: #e5e7eb;">
+        <p style="color: #9ca3af; font-size: 12px; margin: 0;">Need help? Call us at <strong>+234 702 588 7213</strong></p>
       </div>
     </div>
   `;
