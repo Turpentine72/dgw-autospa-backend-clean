@@ -1,6 +1,25 @@
-const { sendEmail } = require('../utils/sendEmail');
+const Brevo = require('@getbrevo/brevo');
 
-// Helper to get company email
+let apiInstance = null;
+
+const getBrevoInstance = () => {
+  if (apiInstance) return apiInstance;
+  apiInstance = new Brevo.TransactionalEmailsApi();
+  apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+  return apiInstance;
+};
+
+// Generic send function using Brevo HTTP API
+const sendEmail = async (to, subject, html) => {
+  const api = getBrevoInstance();
+  const sendSmtpEmail = new Brevo.SendSmtpEmail();
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.to = [{ email: to }];
+  sendSmtpEmail.htmlContent = html;
+  sendSmtpEmail.sender = { name: 'DGW Autospa', email: process.env.EMAIL_FROM };
+  await api.sendTransacEmail(sendSmtpEmail);
+};
+
 const getCompanyEmail = () => process.env.COMPANY_EMAIL || process.env.EMAIL_FROM;
 
 // ----- Contact alert (to company) -----
