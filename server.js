@@ -16,9 +16,28 @@ const app = express();
 // ✅ TRUST PROXY – required for Render (and any proxy)
 app.set('trust proxy', 1);
 
+// ✅ CORS – allow your Vercel frontend (including preview URLs)
+const allowedOrigins = [
+  'https://dgw-autospa-full.vercel.app',
+  /^https:\/\/dgw-autospa-full-.*\.vercel\.app$/  // matches any preview URL
+];
+
 app.use(cors({
-  origin: '*',   // allow all origins – safe for a public API
-  credentials: false,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    // Check if origin matches any allowed pattern
+    const isAllowed = allowedOrigins.some(pattern =>
+      typeof pattern === 'string' ? pattern === origin : pattern.test(origin)
+    );
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,                     // required for Authorization header
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Rate limiting – returns JSON
@@ -46,14 +65,9 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
 });
 
-// Debug endpoint – verify environment variables
-app.get('/debug-env', (req, res) => {
-  res.json({
-    CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || 'missing',
-    API_KEY: process.env.CLOUDINARY_API_KEY ? 'present' : 'missing',
-    API_SECRET: process.env.CLOUDINARY_API_SECRET ? 'present' : 'missing',
-    NODE_ENV: process.env.NODE_ENV || 'not set',
-  });
+// Test endpoint – confirms deployment worked
+app.get('/test-deploy', (req, res) => {
+  res.json({ message: 'Deploy successful', version: '2.0' });
 });
 
 // Routes
