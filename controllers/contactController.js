@@ -1,5 +1,5 @@
 const Contact = require('../models/Contact');
-const emailService = require('../utils/sendEmail');
+const emailService = require('../services/emailService');
 
 // Public – submit contact form
 exports.sendMessage = async (req, res, next) => {
