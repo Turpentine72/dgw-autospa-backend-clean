@@ -16,10 +16,9 @@ const app = express();
 // ✅ TRUST PROXY – required for Render (and any proxy)
 app.set('trust proxy', 1);
 
-// CORS – allow your frontend URLs
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, process.env.ADMIN_URL, 'http://localhost:5173'],
-  credentials: true,
+  origin: '*',   // allow all origins – safe for a public API
+  credentials: false,
 }));
 
 // Rate limiting – returns JSON
@@ -39,10 +38,10 @@ app.use('/api', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static files (if you still serve local uploads – but Cloudinary is preferred)
+// Static files
 app.use('/uploads', express.static('uploads'));
 
-// Health check (required by Railway)
+// Health check
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() });
 });
