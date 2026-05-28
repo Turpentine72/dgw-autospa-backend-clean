@@ -84,6 +84,7 @@ app.use('/api/contact', require('./routes/contact'));
 app.use('/api/admins', require('./routes/admins'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/stats', require('./routes/stats'));
+app.use('/api/promo-codes', require('./routes/promoCodes'));
 
 // Error handling (must be last)
 app.use(errorHandler);

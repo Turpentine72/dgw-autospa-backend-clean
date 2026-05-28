@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cron = require('node-cron');
 const Booking = require('../models/Booking');
+const PromoCode = require('../models/PromoCode');   // <-- added for dynamic promo code
 
 // ---------- Helper to get admin email ----------
 const getAdminEmail = async () => {
@@ -179,7 +180,7 @@ const sendContactAutoReply = async (toEmail, customerName) => {
     }
 };
 
-// ---------- Promotion Booking Email ----------
+// ---------- Promotion Booking Email (DYNAMIC PROMO CODE) ----------
 const sendPromotionBookingEmail = async (customerEmail, customerName, bookingDetails, status) => {
     const statusMessages = {
         pending: { subject: '🎁 FREE Wheel Service Booking Received', message: 'Your FREE Wheel Service booking has been received. We\'ll confirm your slot soon.' },
@@ -205,7 +206,7 @@ const sendPromotionBookingEmail = async (customerEmail, customerName, bookingDet
                 <tr><td style="padding: 8px 0;"><strong>Service:</strong></td><td style="padding: 8px 0;">FREE Wheel Service (Balancing & Alignment Check)</td></tr>
                 <tr><td style="padding: 8px 0;"><strong>Date:</strong></td><td style="padding: 8px 0;">${formattedDate}</td></tr>
                 <tr><td style="padding: 8px 0;"><strong>Time:</strong></td><td style="padding: 8px 0;">${bookingDetails.time}</td></tr>
-                <tr><td style="padding: 8px 0;"><strong>Promo Code:</strong></td><td style="padding: 8px 0;"><strong style="color: #2563eb;">MYFREEWHEEL</strong></td></tr>
+                <tr><td style="padding: 8px 0;"><strong>Promo Code:</strong></td><td style="padding: 8px 0;"><strong style="color: #2563eb;">${bookingDetails.promoCode || 'MYFREEWHEEL'}</strong></td></tr>
             </table>
             </div>
             <hr style="margin: 20px 0; border-color: #e5e7eb;">
@@ -229,8 +230,8 @@ const getCustomerEmails = async () => {
     return customers;
 };
 
-// ---------- Saturday Promotion (single) ----------
-const sendSaturdayPromotionEmail = async (customerEmail, customerName) => {
+// ---------- Saturday Promotion (single) – now accepts promoCode ----------
+const sendSaturdayPromotionEmail = async (customerEmail, customerName, promoCode = 'MYFREEWHEEL') => {
     const frontendUrl = process.env.FRONTEND_URL || 'https://dgwautospa.com';
     const bookingUrl = `${frontendUrl}/free-wheel-service`;
     const html = `
@@ -243,7 +244,7 @@ const sendSaturdayPromotionEmail = async (customerEmail, customerName) => {
             <p>Dear <strong>${customerName}</strong>,</p>
             <p>As a valued customer, we're offering you a <strong style="color: #2563eb;">FREE Wheel Service</strong> this Saturday!</p>
             <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center;">
-            <p style="font-size: 28px; font-weight: bold; color: #1e3a8a; margin: 0;">MYFREEWHEEL</p>
+            <p style="font-size: 28px; font-weight: bold; color: #1e3a8a; margin: 0;">${promoCode}</p>
             <p style="color: #6b7280; margin: 5px 0 0;">Use this code when booking</p>
             </div>
             <div style="text-align: center; margin: 30px 0;">
@@ -264,14 +265,18 @@ const sendSaturdayPromotionEmail = async (customerEmail, customerName) => {
     }
 };
 
-// ---------- Saturday Promotion to All ----------
+// ---------- Saturday Promotion to All (fetches latest promo code) ----------
 const sendSaturdayPromotionToAll = async () => {
     console.log('📧 Starting Saturday promotion campaign...');
     try {
+        // Fetch the latest active promo code from DB
+        const latestPromo = await PromoCode.findOne({ isActive: true }).sort({ createdAt: -1 });
+        const promoCode = latestPromo ? latestPromo.code : 'MYFREEWHEEL';
+        
         const customers = await getCustomerEmails();
         let successCount = 0, failCount = 0;
         for (const customer of customers) {
-            const success = await sendSaturdayPromotionEmail(customer._id, customer.name);
+            const success = await sendSaturdayPromotionEmail(customer._id, customer.name, promoCode);
             success ? successCount++ : failCount++;
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -413,7 +418,7 @@ const sendContactReply = async (contact) => {
 };
 
 const sendSuperAdminNotification = async (subject, messageHtml) => {
-    const adminEmail = await getAdminEmail();  // uses the existing helper
+    const adminEmail = await getAdminEmail();
     try {
         await sendEmail(adminEmail, `🛡️ ${subject}`, `<h2>${subject}</h2>${messageHtml}`);
         console.log(`Super admin notification sent to ${adminEmail}`);

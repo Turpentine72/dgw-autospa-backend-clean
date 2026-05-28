@@ -1,16 +1,42 @@
 const PromotionBooking = require('../models/PromotionBooking');
+const PromoCode = require('../models/PromoCode');
 const emailService = require('../utils/sendEmail');
 
 // ---------- Public: create a promotion booking ----------
 exports.createBooking = async (req, res, next) => {
   try {
-    const booking = await PromotionBooking.create(req.body);
+    const { promoCode, ...bookingData } = req.body;
+
+    // Validate promo code
+    if (!promoCode) {
+      return res.status(400).json({ success: false, message: 'Promo code is required' });
+    }
+
+    const code = await PromoCode.findOne({ code: promoCode.toUpperCase(), isActive: true });
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'Invalid promo code' });
+    }
+    if (code.validUntil && new Date() > code.validUntil) {
+      return res.status(400).json({ success: false, message: 'Promo code has expired' });
+    }
+    if (code.maxUses > 0 && code.usedCount >= code.maxUses) {
+      return res.status(400).json({ success: false, message: 'Promo code usage limit reached' });
+    }
+
+    // Create booking with the validated promo code
+    const booking = await PromotionBooking.create({ ...bookingData, promoCode: code.code });
+
+    // Increment used count if limited
+    if (code.maxUses > 0) {
+      code.usedCount += 1;
+      await code.save();
+    }
 
     // Fire‑and‑forget emails – never crash the request
     emailService.sendPromotionBookingEmail(booking.customerEmail, booking.customerName, booking, booking.status)
       .catch(err => console.error('Promo customer email failed:', err.message));
 
-    emailService.sendBookingAlert(booking)   // reuses existing company alert function
+    emailService.sendBookingAlert(booking)
       .catch(err => console.error('Promo company alert failed:', err.message));
 
     res.status(201).json({ success: true, data: booking });
